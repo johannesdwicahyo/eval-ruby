@@ -105,7 +105,7 @@ module EvalRuby
         PROMPT
 
         result = judge.call(prompt)
-        next unless result&.key?("pairs")
+        next unless result.is_a?(Hash) && result.key?("pairs")
 
         result["pairs"].each do |pair|
           dataset.add(

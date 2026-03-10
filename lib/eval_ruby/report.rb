@@ -32,7 +32,8 @@ module EvalRuby
         next if values.empty?
 
         mean = values.sum / values.size.to_f
-        variance = values.sum { |v| (v - mean)**2 } / values.size.to_f
+        denominator = values.size > 1 ? (values.size - 1).to_f : 1.0
+        variance = values.sum { |v| (v - mean)**2 } / denominator
         std = Math.sqrt(variance)
         hash[metric] = {mean: mean, std: std, min: values.min, max: values.max, count: values.size}
       end

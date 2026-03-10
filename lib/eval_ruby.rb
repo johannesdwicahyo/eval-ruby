@@ -23,6 +23,9 @@ require_relative "eval_ruby/comparison"
 
 module EvalRuby
   class Error < StandardError; end
+  class APIError < Error; end
+  class TimeoutError < Error; end
+  class InvalidResponseError < Error; end
 
   class << self
     def configuration
@@ -78,17 +81,6 @@ module EvalRuby
 
     def compare(report_a, report_b)
       Comparison.new(report_a, report_b)
-    end
-
-    private
-
-    def build_judge
-      config = configuration
-      case config.judge_llm
-      when :openai then Judges::OpenAI.new(config)
-      when :anthropic then Judges::Anthropic.new(config)
-      else raise Error, "Unknown judge LLM: #{config.judge_llm}"
-      end
     end
   end
 end

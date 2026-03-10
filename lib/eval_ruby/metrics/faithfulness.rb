@@ -26,7 +26,7 @@ module EvalRuby
       PROMPT
 
       def call(answer:, context:, **_kwargs)
-        context_text = Array(context).join("\n\n")
+        context_text = context.is_a?(Array) ? context.join("\n\n") : context.to_s
         prompt = format(PROMPT_TEMPLATE, context: context_text, answer: answer)
 
         result = judge.call(prompt)

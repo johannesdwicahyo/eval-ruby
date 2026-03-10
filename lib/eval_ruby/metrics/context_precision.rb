@@ -20,7 +20,7 @@ module EvalRuby
       PROMPT
 
       def call(question:, context:, **_kwargs)
-        contexts = Array(context)
+        contexts = context.is_a?(Array) ? context : [context.to_s]
         return {score: 0.0, details: {}} if contexts.empty?
 
         contexts_text = contexts.each_with_index.map { |c, i| "[#{i}] #{c}" }.join("\n\n")
