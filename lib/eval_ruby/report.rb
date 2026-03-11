@@ -4,15 +4,33 @@ require "csv"
 require "json"
 
 module EvalRuby
+  # Aggregated evaluation report across multiple samples.
+  # Provides statistical summaries, filtering, and export functionality.
+  #
+  # @example
+  #   report = EvalRuby.evaluate_batch(dataset)
+  #   puts report.summary
+  #   report.to_csv("results.csv")
   class Report
-    attr_reader :results, :duration, :samples
+    # @return [Array<Result>] individual evaluation results
+    attr_reader :results
 
+    # @return [Float, nil] total evaluation duration in seconds
+    attr_reader :duration
+
+    # @return [Array<Hash>] original sample data
+    attr_reader :samples
+
+    # @param results [Array<Result>]
+    # @param samples [Array<Hash>]
+    # @param duration [Float, nil]
     def initialize(results:, samples: [], duration: nil)
       @results = results
       @samples = samples
       @duration = duration
     end
 
+    # @return [String] human-readable summary with mean and std for each metric
     def summary
       lines = []
       metric_stats.each do |metric, stats|
@@ -23,6 +41,9 @@ module EvalRuby
       lines.join("\n")
     end
 
+    # Computes per-metric statistics (mean, std, min, max).
+    #
+    # @return [Hash{Symbol => Hash}] metric name to stats hash
     def metric_stats
       return {} if @results.empty?
 
@@ -39,15 +60,27 @@ module EvalRuby
       end
     end
 
+    # Returns the n worst-scoring results.
+    #
+    # @param n [Integer] number of results to return
+    # @return [Array<Result>]
     def worst(n = 5)
       @results.sort_by { |r| r.overall || 0.0 }.first(n)
     end
 
+    # Returns results below the threshold.
+    #
+    # @param threshold [Float, nil] score threshold (defaults to config default_threshold)
+    # @return [Array<Result>]
     def failures(threshold: nil)
       threshold ||= EvalRuby.configuration.default_threshold
       @results.select { |r| (r.overall || 0.0) < threshold }
     end
 
+    # Exports results to CSV.
+    #
+    # @param path [String] output file path
+    # @return [void]
     def to_csv(path)
       return if @results.empty?
 
@@ -61,6 +94,10 @@ module EvalRuby
       end
     end
 
+    # Exports results to JSON.
+    #
+    # @param path [String] output file path
+    # @return [void]
     def to_json(path)
       data = @results.each_with_index.map do |result, i|
         {index: i, scores: result.scores, overall: result.overall, sample: @samples[i]}

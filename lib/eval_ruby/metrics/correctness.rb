@@ -2,6 +2,16 @@
 
 module EvalRuby
   module Metrics
+    # Measures factual correctness of an answer against ground truth.
+    # Uses LLM judge when available, falls back to token overlap F1 score.
+    #
+    # @example With LLM judge
+    #   metric = Correctness.new(judge: judge)
+    #   result = metric.call(answer: "Paris", ground_truth: "Paris")
+    #
+    # @example Without judge (string similarity)
+    #   metric = Correctness.new
+    #   result = metric.call(answer: "The capital is Paris", ground_truth: "Paris is the capital")
     class Correctness < Base
       PROMPT_TEMPLATE = <<~PROMPT
         Given the following answer and ground truth, evaluate whether the answer
@@ -23,6 +33,9 @@ module EvalRuby
         Respond in JSON: {"reasoning": "...", "score": 0.0}
       PROMPT
 
+      # @param answer [String] the LLM-generated answer
+      # @param ground_truth [String] the expected correct answer
+      # @return [Hash] :score (Float 0.0-1.0) and :details
       def call(answer:, ground_truth:, **_kwargs)
         if judge
           llm_score(answer, ground_truth)

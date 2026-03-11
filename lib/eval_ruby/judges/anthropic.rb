@@ -6,14 +6,22 @@ require "uri"
 
 module EvalRuby
   module Judges
+    # Anthropic-based LLM judge using the Messages API.
+    # Requires an API key set via {Configuration#api_key}.
     class Anthropic < Base
       API_URL = "https://api.anthropic.com/v1/messages"
 
+      # @param config [Configuration]
+      # @raise [EvalRuby::Error] if API key is missing
       def initialize(config)
         super
         raise EvalRuby::Error, "API key is required. Set via EvalRuby.configure { |c| c.api_key = '...' }" if @config.api_key.nil? || @config.api_key.empty?
       end
 
+      # @param prompt [String] the evaluation prompt
+      # @return [Hash, nil] parsed JSON response
+      # @raise [EvalRuby::Error] on API errors
+      # @raise [EvalRuby::TimeoutError] after max retries
       def call(prompt)
         retries = 0
         begin

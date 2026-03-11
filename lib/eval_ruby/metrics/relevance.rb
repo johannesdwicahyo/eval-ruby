@@ -2,6 +2,13 @@
 
 module EvalRuby
   module Metrics
+    # Measures whether an answer is relevant to the question.
+    # Uses an LLM judge to evaluate relevance on a 0.0-1.0 scale.
+    #
+    # @example
+    #   metric = Relevance.new(judge: judge)
+    #   result = metric.call(question: "What is Ruby?", answer: "Ruby is a language.")
+    #   result[:score] # => 0.95
     class Relevance < Base
       PROMPT_TEMPLATE = <<~PROMPT
         Given the following question and answer, evaluate whether the answer
@@ -21,6 +28,9 @@ module EvalRuby
         Respond in JSON: {"reasoning": "...", "score": 0.0}
       PROMPT
 
+      # @param question [String] the input question
+      # @param answer [String] the LLM-generated answer
+      # @return [Hash] :score (Float 0.0-1.0) and :details (:reasoning String)
       def call(question:, answer:, **_kwargs)
         prompt = format(PROMPT_TEMPLATE, question: question, answer: answer)
 

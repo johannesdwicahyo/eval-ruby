@@ -2,7 +2,17 @@
 
 module EvalRuby
   module Metrics
+    # Computes Normalized Discounted Cumulative Gain (NDCG).
+    # Measures ranking quality by comparing actual ranking to ideal ranking.
+    #
+    # @example
+    #   NDCG.new.call(retrieved: ["a", "b", "c"], relevant: ["a", "c"])
+    #   # => 0.863
     class NDCG < Base
+      # @param retrieved [Array<String>] retrieved document IDs in ranked order
+      # @param relevant [Array<String>] ground-truth relevant document IDs
+      # @param k [Integer, nil] number of top results (nil for all)
+      # @return [Float] NDCG score (0.0-1.0)
       def call(retrieved:, relevant:, k: nil, **_kwargs)
         k ||= retrieved.length
         top_k = retrieved.first(k)

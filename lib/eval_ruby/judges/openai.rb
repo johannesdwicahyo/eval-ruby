@@ -6,14 +6,22 @@ require "uri"
 
 module EvalRuby
   module Judges
+    # OpenAI-based LLM judge using the Chat Completions API.
+    # Requires an API key set via {Configuration#api_key}.
     class OpenAI < Base
       API_URL = "https://api.openai.com/v1/chat/completions"
 
+      # @param config [Configuration]
+      # @raise [EvalRuby::Error] if API key is missing
       def initialize(config)
         super
         raise EvalRuby::Error, "API key is required. Set via EvalRuby.configure { |c| c.api_key = '...' }" if @config.api_key.nil? || @config.api_key.empty?
       end
 
+      # @param prompt [String] the evaluation prompt
+      # @return [Hash, nil] parsed JSON response
+      # @raise [EvalRuby::Error] on API errors
+      # @raise [EvalRuby::TimeoutError] after max retries
       def call(prompt)
         retries = 0
         begin

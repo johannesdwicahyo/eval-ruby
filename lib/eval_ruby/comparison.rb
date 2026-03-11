@@ -1,14 +1,27 @@
 # frozen_string_literal: true
 
 module EvalRuby
+  # Statistical comparison of two evaluation reports using paired t-tests.
+  #
+  # @example
+  #   comparison = EvalRuby.compare(report_a, report_b)
+  #   puts comparison.summary
+  #   comparison.significant_improvements # => [:faithfulness]
   class Comparison
-    attr_reader :report_a, :report_b
+    # @return [Report] baseline report
+    attr_reader :report_a
 
+    # @return [Report] comparison report
+    attr_reader :report_b
+
+    # @param report_a [Report] baseline
+    # @param report_b [Report] comparison
     def initialize(report_a, report_b)
       @report_a = report_a
       @report_b = report_b
     end
 
+    # @return [String] formatted comparison table with deltas and p-values
     def summary
       lines = [
         format("%-20s | %-10s | %-10s | %-8s | %s", "Metric", "A", "B", "Delta", "p-value"),
@@ -35,6 +48,10 @@ module EvalRuby
       lines.join("\n")
     end
 
+    # Returns metrics where report_b is significantly better than report_a.
+    #
+    # @param alpha [Float] significance level (default 0.05)
+    # @return [Array<Symbol>] metric names with significant improvements
     def significant_improvements(alpha: 0.05)
       all_metrics.select do |metric|
         scores_a = @report_a.results.filter_map { |r| r.scores[metric] }

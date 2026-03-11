@@ -2,6 +2,13 @@
 
 module EvalRuby
   module Metrics
+    # Measures the proportion of retrieved contexts that are relevant to the question.
+    # Uses an LLM judge to evaluate each context's relevance.
+    #
+    # @example
+    #   metric = ContextPrecision.new(judge: judge)
+    #   result = metric.call(question: "What is Ruby?", context: ["Ruby is...", "Weather..."])
+    #   result[:score] # => 0.5
     class ContextPrecision < Base
       PROMPT_TEMPLATE = <<~PROMPT
         Given the following question and a list of retrieved contexts, evaluate
@@ -19,6 +26,9 @@ module EvalRuby
         The score should be the proportion of relevant contexts (0.0 to 1.0).
       PROMPT
 
+      # @param question [String] the input question
+      # @param context [Array<String>, String] retrieved context chunks
+      # @return [Hash] :score (Float 0.0-1.0) and :details (:evaluations Array)
       def call(question:, context:, **_kwargs)
         contexts = context.is_a?(Array) ? context : [context.to_s]
         return {score: 0.0, details: {}} if contexts.empty?

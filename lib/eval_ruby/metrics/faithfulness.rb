@@ -2,6 +2,13 @@
 
 module EvalRuby
   module Metrics
+    # Measures whether an answer is supported by the provided context.
+    # Uses an LLM judge to identify claims and check if each is supported.
+    #
+    # @example
+    #   metric = Faithfulness.new(judge: judge)
+    #   result = metric.call(answer: "Paris is in France", context: ["Paris is the capital of France."])
+    #   result[:score] # => 1.0
     class Faithfulness < Base
       PROMPT_TEMPLATE = <<~PROMPT
         Given the following context and answer, evaluate whether the answer
@@ -25,6 +32,9 @@ module EvalRuby
         Respond in JSON: {"claims": [{"claim": "...", "supported": true}], "score": 0.0}
       PROMPT
 
+      # @param answer [String] the LLM-generated answer
+      # @param context [Array<String>, String] retrieved context chunks
+      # @return [Hash] :score (Float 0.0-1.0) and :details (:claims Array)
       def call(answer:, context:, **_kwargs)
         context_text = context.is_a?(Array) ? context.join("\n\n") : context.to_s
         prompt = format(PROMPT_TEMPLATE, context: context_text, answer: answer)

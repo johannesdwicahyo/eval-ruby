@@ -4,16 +4,36 @@ require "csv"
 require "json"
 
 module EvalRuby
+  # Collection of evaluation samples with import/export support.
+  # Supports CSV, JSON, and programmatic construction.
+  #
+  # @example
+  #   dataset = EvalRuby::Dataset.new("my_test_set")
+  #   dataset.add(question: "What is Ruby?", answer: "A language", ground_truth: "A language")
+  #   report = EvalRuby.evaluate_batch(dataset)
   class Dataset
     include Enumerable
 
-    attr_reader :name, :samples
+    # @return [String] dataset name
+    attr_reader :name
 
+    # @return [Array<Hash>] sample entries
+    attr_reader :samples
+
+    # @param name [String] dataset name
     def initialize(name = "default")
       @name = name
       @samples = []
     end
 
+    # Adds a sample to the dataset.
+    #
+    # @param question [String]
+    # @param ground_truth [String, nil]
+    # @param relevant_contexts [Array<String>] alias for context
+    # @param answer [String, nil]
+    # @param context [Array<String>]
+    # @return [self]
     def add(question:, ground_truth: nil, relevant_contexts: [], answer: nil, context: [])
       @samples << {
         question: question,
@@ -24,18 +44,26 @@ module EvalRuby
       self
     end
 
+    # @yield [Hash] each sample
     def each(&block)
       @samples.each(&block)
     end
 
+    # @return [Integer] number of samples
     def size
       @samples.size
     end
 
+    # @param index [Integer]
+    # @return [Hash] sample at index
     def [](index)
       @samples[index]
     end
 
+    # Loads a dataset from a CSV file.
+    #
+    # @param path [String] path to CSV file
+    # @return [Dataset]
     def self.from_csv(path)
       dataset = new(File.basename(path, ".*"))
       CSV.foreach(path, headers: true) do |row|
@@ -49,6 +77,10 @@ module EvalRuby
       dataset
     end
 
+    # Loads a dataset from a JSON file.
+    #
+    # @param path [String] path to JSON file
+    # @return [Dataset]
     def self.from_json(path)
       dataset = new(File.basename(path, ".*"))
       data = JSON.parse(File.read(path))
@@ -64,6 +96,10 @@ module EvalRuby
       dataset
     end
 
+    # Exports dataset to CSV.
+    #
+    # @param path [String] output file path
+    # @return [void]
     def to_csv(path)
       CSV.open(path, "w") do |csv|
         csv << %w[question answer context ground_truth]
@@ -78,10 +114,20 @@ module EvalRuby
       end
     end
 
+    # Exports dataset to JSON.
+    #
+    # @param path [String] output file path
+    # @return [void]
     def to_json(path)
       File.write(path, JSON.pretty_generate({name: @name, samples: @samples}))
     end
 
+    # Generates a dataset from documents using an LLM.
+    #
+    # @param documents [Array<String>] file paths to source documents
+    # @param questions_per_doc [Integer] number of QA pairs per document
+    # @param llm [Symbol] LLM provider (:openai or :anthropic)
+    # @return [Dataset]
     def self.generate(documents:, questions_per_doc: 5, llm: :openai)
       config = EvalRuby.configuration.dup
       config.judge_llm = llm
