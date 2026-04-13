@@ -19,6 +19,15 @@ module EvalRuby
     # @return [String, nil] API key for the judge LLM provider
     attr_accessor :api_key
 
+    # @return [Symbol] embedding provider (:openai in v0.3.0)
+    attr_accessor :embedder_llm
+
+    # @return [String] model name for the embedder
+    attr_accessor :embedder_model
+
+    # @return [String, nil] API key for the embedder; falls back to {#api_key} when nil
+    attr_accessor :embedder_api_key
+
     # @return [Float] default threshold for pass/fail decisions
     attr_accessor :default_threshold
 
@@ -32,6 +41,9 @@ module EvalRuby
       @judge_llm = :openai
       @judge_model = "gpt-4o"
       @api_key = nil
+      @embedder_llm = :openai
+      @embedder_model = "text-embedding-3-small"
+      @embedder_api_key = nil
       @default_threshold = 0.7
       @timeout = 30
       @max_retries = 3

@@ -124,21 +124,30 @@ module EvalRuby
 
     # Generates a dataset from documents using an LLM.
     #
-    # @param documents [Array<String>] file paths to source documents
-    # @param questions_per_doc [Integer] number of QA pairs per document
+    # Each document is read, passed to the LLM with a prompt asking for
+    # +questions_per_doc+ QA pairs, and the resulting pairs are appended to
+    # the dataset. Directory paths are expanded via +Dir.glob+. Missing paths
+    # and malformed LLM responses raise or are skipped gracefully rather than
+    # crashing the whole generation.
+    #
+    # @param documents [String, Array<String>] file paths or directory paths
+    # @param questions_per_doc [Integer] number of QA pairs per document (must be > 0)
     # @param llm [Symbol] LLM provider (:openai or :anthropic)
+    # @param judge [Judges::Base, nil] inject a pre-built judge (mainly for testing)
     # @return [Dataset]
-    def self.generate(documents:, questions_per_doc: 5, llm: :openai)
-      config = EvalRuby.configuration.dup
-      config.judge_llm = llm
-      judge = case llm
-      when :openai then Judges::OpenAI.new(config)
-      when :anthropic then Judges::Anthropic.new(config)
-      else raise Error, "Unknown LLM: #{llm}"
+    # @raise [EvalRuby::Error] on bad arguments or no documents found
+    def self.generate(documents:, questions_per_doc: 5, llm: :openai, judge: nil)
+      unless questions_per_doc.is_a?(Integer) && questions_per_doc.positive?
+        raise Error, "questions_per_doc must be a positive integer, got #{questions_per_doc.inspect}"
       end
 
+      document_paths = expand_document_paths(documents)
+      raise Error, "No documents found in the provided paths" if document_paths.empty?
+
+      judge ||= build_judge_for(llm)
+
       dataset = new("generated")
-      documents.each do |doc_path|
+      document_paths.each do |doc_path|
         content = File.read(doc_path)
         prompt = <<~PROMPT
           Given the following document, generate #{questions_per_doc} question-answer pairs
@@ -150,20 +159,70 @@ module EvalRuby
           Respond in JSON: {"pairs": [{"question": "...", "answer": "...", "context": "relevant excerpt"}]}
         PROMPT
 
-        result = judge.call(prompt)
-        next unless result.is_a?(Hash) && result.key?("pairs")
+        begin
+          result = judge.call(prompt)
+        rescue StandardError
+          next # keep generating from remaining docs; individual failure should not abort the batch
+        end
 
-        result["pairs"].each do |pair|
+        extract_pairs(result).each do |pair|
+          next unless valid_pair?(pair)
+
           dataset.add(
             question: pair["question"],
             answer: pair["answer"],
-            context: [pair["context"] || content],
+            context: [pair["context"].is_a?(String) && !pair["context"].empty? ? pair["context"] : content],
             ground_truth: pair["answer"]
           )
         end
       end
       dataset
     end
+
+    # Expands a list of file/directory paths into a flat list of file paths.
+    # Validates existence — missing paths raise an Error.
+    #
+    # @param paths [String, Array<String>]
+    # @return [Array<String>] absolute-or-relative file paths, each verified to exist
+    # @raise [EvalRuby::Error] if any path does not exist
+    def self.expand_document_paths(paths)
+      result = []
+      Array(paths).each do |path|
+        if File.directory?(path)
+          result.concat(Dir.glob(File.join(path, "**/*")).select { |p| File.file?(p) }.sort)
+        elsif File.file?(path)
+          result << path
+        else
+          raise Error, "Document path does not exist: #{path}"
+        end
+      end
+      result
+    end
+
+    def self.build_judge_for(llm)
+      config = EvalRuby.configuration.dup
+      config.judge_llm = llm
+      case llm
+      when :openai then Judges::OpenAI.new(config)
+      when :anthropic then Judges::Anthropic.new(config)
+      else raise Error, "Unknown LLM: #{llm}"
+      end
+    end
+    private_class_method :build_judge_for
+
+    def self.extract_pairs(result)
+      return [] unless result.is_a?(Hash)
+      pairs = result["pairs"]
+      pairs.is_a?(Array) ? pairs : []
+    end
+    private_class_method :extract_pairs
+
+    def self.valid_pair?(pair)
+      pair.is_a?(Hash) &&
+        pair["question"].is_a?(String) && !pair["question"].strip.empty? &&
+        pair["answer"].is_a?(String) && !pair["answer"].strip.empty?
+    end
+    private_class_method :valid_pair?
 
     private_class_method def self.parse_array_field(value)
       return [] if value.nil? || value.empty?

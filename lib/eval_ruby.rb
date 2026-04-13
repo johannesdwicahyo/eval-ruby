@@ -5,12 +5,15 @@ require_relative "eval_ruby/configuration"
 require_relative "eval_ruby/judges/base"
 require_relative "eval_ruby/judges/openai"
 require_relative "eval_ruby/judges/anthropic"
+require_relative "eval_ruby/embedders/base"
+require_relative "eval_ruby/embedders/openai"
 require_relative "eval_ruby/metrics/base"
 require_relative "eval_ruby/metrics/faithfulness"
 require_relative "eval_ruby/metrics/relevance"
 require_relative "eval_ruby/metrics/correctness"
 require_relative "eval_ruby/metrics/context_precision"
 require_relative "eval_ruby/metrics/context_recall"
+require_relative "eval_ruby/metrics/semantic_similarity"
 require_relative "eval_ruby/metrics/precision_at_k"
 require_relative "eval_ruby/metrics/recall_at_k"
 require_relative "eval_ruby/metrics/mrr"
@@ -47,6 +50,17 @@ module EvalRuby
   class APIError < Error; end
   class TimeoutError < Error; end
   class InvalidResponseError < Error; end
+
+  # Progress snapshot yielded to the block passed to {.evaluate_batch}.
+  # @!attribute current [Integer] number of samples completed (1-indexed)
+  # @!attribute total [Integer] total samples in the batch
+  # @!attribute elapsed [Float] seconds since batch started
+  Progress = Struct.new(:current, :total, :elapsed, keyword_init: true) do
+    # @return [Float] completion percentage, 0.0–100.0
+    def percent
+      total.zero? ? 0.0 : (current.to_f / total * 100).round(2)
+    end
+  end
 
   class << self
     # @return [Configuration] the current configuration
@@ -101,16 +115,26 @@ module EvalRuby
 
     # Evaluates a batch of samples, optionally running them through a pipeline.
     #
+    # If a block is given, it is called after each sample with a {Progress}
+    # snapshot, useful for rendering progress bars or writing incremental logs.
+    #
     # @param dataset [Dataset, Array<Hash>] samples to evaluate
     # @param pipeline [#query, nil] optional RAG pipeline to run queries through
+    # @yieldparam progress [Progress] progress snapshot after each sample
     # @return [Report]
-    def evaluate_batch(dataset, pipeline: nil)
+    #
+    # @example With progress callback
+    #   EvalRuby.evaluate_batch(dataset) do |progress|
+    #     puts "#{progress.current}/#{progress.total} (#{progress.percent}%)"
+    #   end
+    def evaluate_batch(dataset, pipeline: nil, &progress_block)
       samples = dataset.is_a?(Dataset) ? dataset.samples : dataset
       evaluator = Evaluator.new
       start_time = Time.now
+      total = samples.size
 
-      results = samples.map do |sample|
-        if pipeline
+      results = samples.each_with_index.map do |sample, i|
+        result = if pipeline
           response = pipeline.query(sample[:question])
           evaluator.evaluate(
             question: sample[:question],
@@ -121,6 +145,14 @@ module EvalRuby
         else
           evaluator.evaluate(**sample.slice(:question, :answer, :context, :ground_truth))
         end
+
+        progress_block&.call(Progress.new(
+          current: i + 1,
+          total: total,
+          elapsed: Time.now - start_time
+        ))
+
+        result
       end
 
       Report.new(results: results, samples: samples, duration: Time.now - start_time)

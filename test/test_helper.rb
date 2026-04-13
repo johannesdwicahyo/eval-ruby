@@ -34,3 +34,40 @@ def openai_response(content)
     ]
   }
 end
+
+# Stub embedder for testing embedding-based metrics without real API calls.
+# Accepts either a fixed Array<Array<Float>>, a Hash keyed by text, or a Proc.
+class StubEmbedder < EvalRuby::Embedders::Base
+  def initialize(vectors, model: "stub-embedder")
+    @vectors = vectors
+    @model = model
+    @call_count = 0
+    @last_inputs = nil
+  end
+
+  attr_reader :call_count, :last_inputs
+
+  def call(texts)
+    @call_count += 1
+    @last_inputs = texts
+
+    case @vectors
+    when Proc  then @vectors.call(texts)
+    when Hash  then texts.map { |t| @vectors.fetch(t) { raise "StubEmbedder: no vector configured for #{t.inspect}" } }
+    else            @vectors
+    end
+  end
+
+  def model
+    @model
+  end
+end
+
+def openai_embeddings_response(vectors)
+  {
+    "object" => "list",
+    "data" => vectors.each_with_index.map { |vec, i| {"object" => "embedding", "index" => i, "embedding" => vec} },
+    "model" => "text-embedding-3-small",
+    "usage" => {"prompt_tokens" => 10, "total_tokens" => 10}
+  }
+end

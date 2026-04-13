@@ -50,6 +50,45 @@ result.overall           # => 0.94
 - **NDCG** (Normalized Discounted Cumulative Gain)
 - **Hit Rate**
 
+### Embedding-Based
+
+- **Semantic Similarity** — cosine similarity between answer and ground truth via a pluggable embedder. Judge-free, fast, deterministic; useful for chatbot regression testing where you want a reference-based score without an LLM call.
+
+## Semantic Similarity
+
+`SemanticSimilarity` is opt-in (not part of the default `Evaluator` roster in v0.3.0). Instantiate it directly when you need reference-based scoring without an LLM judge — for example, scoring a chatbot's actual response against a fixed expected response.
+
+```ruby
+EvalRuby.configure do |config|
+  config.api_key        = ENV["OPENAI_API_KEY"]        # shared with judge by default
+  config.embedder_model = "text-embedding-3-small"      # default; also supports text-embedding-3-large
+  # config.embedder_api_key = ENV["OTHER_KEY"]          # optional; falls back to api_key
+end
+
+embedder = EvalRuby::Embedders::OpenAI.new(EvalRuby.configuration)
+metric   = EvalRuby::Metrics::SemanticSimilarity.new(embedder: embedder)
+
+result = metric.call(
+  answer:       "Paris is the capital of France",
+  ground_truth: "The capital of France is Paris"
+)
+
+result[:score]              # => 0.92
+result[:details][:cosine]   # => 0.92 (raw, pre-clamp)
+result[:details][:model]    # => "text-embedding-3-small"
+```
+
+**When to use `SemanticSimilarity` vs `Correctness`:**
+
+| | `Correctness` | `SemanticSimilarity` |
+|---|---|---|
+| Backend | LLM judge (GPT-4, Claude, …) | Embeddings + cosine |
+| Cost per call | $$ (judge LLM tokens) | $ (embedding tokens) |
+| Latency | High (LLM generation) | Low (embedding lookup) |
+| Determinism | Low (model-dependent) | High |
+| Reasoning | Natural-language rationale in details | Raw cosine value |
+| Best for | Nuanced/subjective answers | Regression tests, bulk scoring |
+
 ## Retrieval Evaluation
 
 ```ruby
